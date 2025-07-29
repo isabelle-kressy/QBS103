@@ -1,0 +1,123 @@
+---
+title: "QBS103 Submission 2"
+author: "Isabelle Kressy"
+output: pdf_document
+date: "2025-07-19"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages}
+
+library(tidyverse)
+library(reshape2)
+
+```
+
+```{r import data and df wrangling}
+
+# this is copied from my submission 1
+
+
+# set working directory
+setwd("~/Desktop/Dartmouth/Foundations of Data Science")
+
+# import csv files
+genes_df <- read_csv(file = 'QBS103_GSE157103_genes.csv')
+meta_df <- read_csv(file = 'QBS103_GSE157103_series_matrix-1.csv')
+
+# combine dataframes and subset for plotting
+
+## tidy genes_df to a format for df merging (ie change format, change column names)
+genes_df_tidy <- genes_df %>%
+  pivot_longer(cols = c(-'...1'), names_to = 'participant_id2', 
+               values_to = 'Gene Expression') %>%
+  mutate('Gene' = ...1) %>%
+  select(-'...1') %>%
+  pivot_wider(values_from = 'Gene Expression', names_from = 'Gene')
+
+## join data frames by participant_id
+full_df <- cbind(genes_df_tidy, meta_df) 
+full_df$`ferritin(ng/ml)`[full_df$`ferritin(ng/ml)` == "unknown"] <- 0
+full_df$`ferritin(ng/ml)` <- as.numeric(full_df$`ferritin(ng/ml)`)
+
+## create factors of sex and disease_status for correct plotting
+full_df$sex <- factor(full_df$sex, levels = c('female', 'male'))
+full_df$disease_status <- factor(full_df$disease_status, 
+                                 levels = c('disease state: COVID-19', 
+                                            'disease state: non-COVID-19'))
+
+# gene = ABCB4, AAMP, AASS
+# categorical covariates = sex and disease status
+# continuous covariate = ferritin(ng/ml)
+
+
+```
+
+
+```{r function for plotting}
+
+# define inputs for function
+genes <- list('ABCB4', 'AAMP', 'AASS')
+continuous_covariate <- list('ferritin(ng/ml)')
+categorical_covariate <- list('sex', 'disease_status')
+columns <- colnames(full_df)
+
+# histogram, scatterplot, boxplot theme
+myTheme <- theme(panel.border = element_blank(), 
+                 panel.grid.major = element_blank(),
+                 panel.grid.minor = element_blank(), 
+                 axis.line = element_line(colour = "black"),
+                 plot.background = element_blank(),
+                 panel.background = element_blank(),
+                 plot.title = element_text(size = 14, face = 'bold', hjust = 0.5),
+                 axis.title.x = element_text(size = 12, face = 'bold'),
+                 axis.title.y = element_text(size = 12, face = 'bold'))
+
+
+
+# create function for plotting
+# found the paste() function in chat to insert an object into a string
+# used chat to get rid of NA values in sex for boxplot plotting (see data = ... part)
+plotting_function <- function(full_df,genes,continuous_covariate,categorical_covariate){
+  for (gene in genes){
+    hist_plot <- ggplot(data = full_df, aes(x = .data[[gene]])) +
+      geom_histogram(bins = 40, fill = 'lightgrey', color = 'black') +
+      labs(title = paste(gene, 'Expression'), x = 'Gene Expression', y = 'Frequency') +
+      myTheme
+  print(hist_plot)
+  
+    for (cont_var in continuous_covariate){
+      scat_plot <- ggplot(data = full_df, aes(x = .data[[gene]], y = .data[[cont_var]])) +
+        geom_point(size = 1.75) +
+        labs(title = paste(gene, 'Expression vs Ferritin Levels'), 
+            x = 'Gene Expression', y = 'Ferritin (ng/mL)') +
+        myTheme
+      print(scat_plot)
+
+      bp <- ggplot(data = subset(full_df, !is.na(sex)), 
+                   aes(x = .data[[categorical_covariate[[2]]]],
+                       y = .data[[gene]], color = .data[[categorical_covariate[[1]]]])) +
+        geom_boxplot() + 
+        scale_color_manual(values = c('#7F80B1', '#7FD1B9', 'black')) +
+        labs(x = 'Disease Status', y = 'Gene Expression', 
+             title = paste('Distribution of', gene, 'Expression'),
+             color = 'Gender') + 
+        scale_x_discrete(labels = c('COVID-19', 'non-COVID-19')) + 
+        myTheme
+  print(bp)
+
+  }
+  }
+
+}
+
+plotting_function(full_df = full_df, genes = genes, continuous_covariate = continuous_covariate, 
+                  categorical_covariate = categorical_covariate)
+
+
+```
+
+
